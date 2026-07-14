@@ -1,0 +1,72 @@
+[package]
+name = "plthook-native"
+description = "Pure-Rust import-table rebinding engine (PE/IAT, ELF/GOT and Mach-O)."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license = "(MIT OR Apache-2.0) AND BSD-2-Clause"
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/plthook-native"
+readme = "README.md"
+keywords = ["hooking", "plt", "iat", "got", "ffi"]
+categories = ["development-tools::ffi", "os"]
+
+# The test fixtures are compiled by `build.rs` for the integration tests only.
+# Excluding them from the published package keeps consumers from downloading (or
+# having `build.rs` recompile) `cdylib`s they never load; `build.rs` no-ops when
+# the source is absent.
+exclude = ["tests/"]
+
+# Keep the source-level crate name compatible with existing `use plthook::...`
+# code while publishing under the unambiguous crates.io package name.
+[lib]
+name = "plthook"
+
+[lints]
+workspace = true
+
+[dependencies]
+# Typed error definitions (no process-global error buffer).
+thiserror = { workspace = true }
+
+# The runtime engine deliberately avoids `object`/`goblin`:
+# every PE/ELF structure is parsed by the hand-rolled, bounds-checked walkers in
+# `src/pe.rs` / `src/elf.rs`. Only the platform loader / memory / process syscalls
+# come from `windows-sys` (Windows) and `libc` (Unix).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+    "Win32_System_ProcessStatus",
+    "Win32_System_SystemInformation",
+] }
+
+# The runtime ELF engine uses `dl_iterate_phdr` enumeration, `dlsym`
+# originals, `/proc/self/maps` protection, and `mprotect` RELRO handling. The ELF
+# relocation/symbol/version parsing is hand-rolled in `src/elf.rs`.
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+# The macOS and iOS/iPadOS Mach-O engine uses `mach_vm_protect`/
+# `mach_vm_region` for const-data page protection (`__DATA_CONST`/`__AUTH_CONST` are
+# read-only after fixups) and `mach_task_self`. `libc` (via the shared `cfg(unix)`
+# entry above) supplies the `_dyld_*` image enumeration, `dladdr`, and `dlsym`; the
+# Mach-O header/load-command/fixup parsing is hand-rolled in `src/macho.rs`
+# . iOS reuses this same backend — a `mach2`-using
+# Darwin target — so the gate covers both Apple platforms the engine supports.
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+mach2 = { workspace = true }
+
+# Integration tests load the fixture DLLs (and a real BRAW DLL) and parse the
+# `libc` needs no dev-dependency entry: the `[target.'cfg(unix)'.dependencies]`
+# above is already available to the Unix engine test, which hooks a libc import
+# of the test binary itself.
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+] }
+serde_json = { workspace = true }

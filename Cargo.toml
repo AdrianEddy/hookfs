@@ -1,0 +1,75 @@
+# Workspace root for the `hookfs` project — a pure-Rust virtual filesystem
+# implemented by import-table hooking. The workspace contains both the runtime
+# rebinding engine (`crates/plthook`) and the virtual filesystem (`crates/hookfs`).
+[workspace]
+resolver = "3"
+members = ["crates/plthook", "crates/hookfs"]
+
+# Shared package metadata. Every member crate inherits these with
+# `field.workspace = true`, so version/edition/lints stay consistent across the
+# workspace.
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.96"
+authors = ["Adrian Eddy <adrian.eddy@gmail.com>"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/AdrianEddy/hookfs"
+homepage = "https://github.com/AdrianEddy/hookfs"
+
+# Centralized dependency versions. Members reference these via
+# `dependency.workspace = true`, so an upgrade happens in exactly one place.
+[workspace.dependencies]
+# Binary format parsing (PE/ELF/Mach-O incl. universal + chained fixups) —
+# allowed in the OFFLINE audit tool only, and unified on the heavily-fuzzed,
+# fully bounds-checked `object` crate. The runtime engine hand-rolls its parsing.
+object = "0.39"
+# Content hashing for binary identity.
+sha2 = "0.11"
+# Manifest / allowlist (de)serialization.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# CLI parsing.
+clap = { version = "4", features = ["derive"] }
+# Typed error definitions (no stringly-typed errors).
+thiserror = "2"
+# Windows KERNEL32 / PSAPI bindings for the runtime PE engine. The PE
+# header/import walk is hand-rolled; this crate only supplies
+# the loader, memory-protection, and module-enumeration syscalls.
+windows-sys = "0.61"
+# Unix loader / memory / dirent / stat syscalls for the runtime ELF engine and
+# the Unix shims. Like `windows-sys` on Windows, this supplies only the
+# syscalls and the exact libc ABI structs the shims reproduce byte-for-byte
+# (`dl_iterate_phdr`, `dlsym`, `mprotect`, `fopencookie`, `struct stat`, `dirent`,
+# …); the ELF header/relocation/version walk is hand-rolled.
+libc = "0.2"
+# Apple mach VM syscalls for the macOS and iOS/iPadOS Mach-O engines:
+# `mach_vm_protect` / `mach_vm_region` (const-data page protection) and
+# `mach_task_self`. Like `libc`, this supplies only the syscalls; the Mach-O parsing
+# is hand-rolled. `mach2` covers both Darwin targets.
+mach2 = "0.6"
+
+# Strict, shared lint policy. Members opt in with `[lints] workspace = true`.
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+# Lint group — lower priority so specific lints above can override it.
+rust_2024_compatibility = { level = "warn", priority = -1 }
+
+[workspace.lints.clippy]
+# Deny the sharp edges that matter most for parsing untrusted binary input:
+# no panics on malformed data, no silent truncation, explicit bounds handling.
+unwrap_used = "warn"
+expect_used = "warn"
+indexing_slicing = "warn"
+panic = "warn"
+cast_possible_truncation = "warn"
+missing_errors_doc = "allow"
+# Keep the general bar high without being noisy.
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+
+# Optimize release manifests: audit runs are short-lived CLI invocations.
+[profile.release]
+opt-level = 2

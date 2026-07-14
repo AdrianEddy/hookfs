@@ -1,0 +1,8 @@
+# Rust build artifacts
+/target
+Cargo.lock.orig
+
+# Editor / OS cruft
+*~
+.vscode
+.DS_Store

@@ -1,0 +1,62 @@
+[package]
+name = "hookfs"
+description = "Safe virtual filesystem for closed-source native libraries, via import-table hooking"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+documentation = "https://docs.rs/hookfs"
+readme = "README.md"
+keywords = ["filesystem", "virtual", "hooking", "ffi", "native"]
+categories = ["filesystem", "development-tools::ffi"]
+
+# The test fixtures are compiled by `build.rs` for the integration tests only.
+# Excluding them from the published package keeps consumers from downloading (or
+# having `build.rs` recompile) a `cdylib` they never load; `build.rs` still emits
+# the `hookfs_backend` cfg and no-ops the fixture build when the source is absent.
+exclude = ["tests/"]
+
+[lints]
+workspace = true
+
+[dependencies]
+# The import-rebinding engine. `hookfs` decides *which* symbols to patch and
+# points them at its shims; `plthook` performs the mechanical, transactional
+# rewrite.
+plthook = { package = "plthook-native", version = "0.1.0", path = "../plthook" }
+# Typed error model (no stringly-typed errors).
+thiserror = { workspace = true }
+
+# Windows KERNEL32 file APIs. `hookfs` calls the *original* file functions
+# through saved raw pointers (never through these links, to avoid re-entering
+# its own shims); windows-sys supplies only the exact ABI types/structs/constants
+# the shims must reproduce byte-for-byte (R13), plus the handful of un-hooked
+# helpers it calls directly (SetLastError, GetLastError, GetWindowsDirectoryW).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+    "Win32_System_SystemInformation",
+    "Win32_System_LibraryLoader",
+] }
+
+# libc supplies the POSIX syscalls the Unix shims call directly (the *original*
+# `open`/`fopencookie`/`__errno_location`/…) and the exact ABI structs the shims
+# reproduce byte-for-byte (`struct stat`/`statvfs`/`statx`/`dirent`, R13). Like
+# windows-sys on Windows, hookfs never routes file I/O through these links — it
+# calls saved raw pointers to avoid re-entering its own shims (§7.4).
+[target.'cfg(unix)'.dependencies]
+libc = { workspace = true }
+
+# The engine-level integration test loads the fixture cdylib and resolves its
+# exports. `libc` needs no dev-dependency entry: the `[target.'cfg(unix)'.dependencies]`
+# above is already available to the Unix engine test (`dlopen`/`dlsym`).
+[target.'cfg(windows)'.dev-dependencies]
+windows-sys = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+] }

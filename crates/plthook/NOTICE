@@ -1,0 +1,11 @@
+plthook-native
+Copyright 2026 Adrian Eddy
+
+This crate is a Rust port derived from kubo/plthook:
+https://github.com/kubo/plthook
+
+The port covers upstream ELF code copyright 2013-2019 Kubo Takehiro, PE code
+copyright 2013-2014 Kubo Takehiro, and Mach-O code copyright 2014-2024 Kubo
+Takehiro. The upstream BSD-2-Clause copyright notices, conditions, and
+disclaimer are reproduced in LICENSE-BSD-2-Clause and must be retained as
+required by that license.
